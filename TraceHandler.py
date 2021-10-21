@@ -1,9 +1,7 @@
-from re import L
 import struct
 from collections import namedtuple
 from typing import Dict
 import numpy as np
-from numpy.lib.function_base import select
 
 
 class HeaderHandler:
@@ -36,6 +34,11 @@ class HeaderHandler:
         self.global_header_dict = self.__make_empty()
 
         self.StartMarker = b"\x5f\x00"
+
+    def __getitem__(self, attribute):
+        for item in self.header_format:
+            if item[1] == attribute:
+                return self.global_header_dict[item[0]]
 
     # build a header from header dictionary, return header bytes
     def build(self, header_dict=None) -> bytes:
@@ -132,7 +135,7 @@ class HeaderHandler:
             self.global_header_dict = header_dict
     
     def __set_code(self, dtype):
-        SC_num = 0x43
+        SC_tag = 0x43
         encode = 0
         if dtype == 'int8' or dtype == 'byte':
             encode  = 0x01
@@ -146,10 +149,10 @@ class HeaderHandler:
         else:
             ValueError("Unrecognized dtype:{}".format(dtype))
 
-        if self.global_header_dict[SC_num]:
-            assert encode == self.global_header_dict[SC_num]
+        if self.global_header_dict[SC_tag]:
+            assert encode == self.global_header_dict[SC_tag]
         else:
-            self.global_header_dict[SC_num] = encode
+            self.global_header_dict[SC_tag] = encode
     
     def set_title(self, title):
         if isinstance(title, str):
@@ -221,18 +224,48 @@ class TraceHandler:
     def transform(self, transformer):
         self.transformer = transformer
 
-    def save2trs(self, crypto_data_getter=None, chunksize=1024*1024*4):
+    def save2trs(self, output:str, crypto_data_getter=None, chunksize=1024*1024*4):
         '''
         crypto_data_getter (i, j) return cryptodata that's to 
         be embedded into the final trs file for j-th trace 
         of i-th inputted trace file 
         '''
         buffer:bytes = b''
+
+        out = open(output, 'wb')
+        out.write(self.header_handler.build())
+        trace_cnt = 0
+        for i, file in enumerate(self.filelist):
+            with open(file, b'rb') as tracefile:
+                _, offset = self.__parse_header_from_file(filename)
+                tracefile.seek(offset, 0) # skip header
+                j = 0
+                while True:
+                    one_trace = tracefile.read(self.header_handler['NS'])
+                    j += 1
+                    if not one_trace: break
+                    assert len(one_trace) == self.header_handler['NS']
+                    if self.header_handler['DS'] and crypto_data_getter:
+                        crypto_data = crypto_data_getter(trace_cnt, i, j)
+                    buffer += crypto_data + one_trace
+                    if len(buffer) >= chunksize:
+                        out.write(buffer[:chunksize])
+                        buffer = buffer[chunksize:]
+        while buffer:
+            out.write(buffer[:chunksize])
+            buffer = buffer[chunksize:]
+        out.close()
+    
+    def generate_header(self):
         if self.with_header:
             for filename in self.filelist:
-                header = self.__parse_header_from_file(filename)
+                header, _ = self.__parse_header_from_file(filename)
                 self.header_handler.update(header)
-            
+            self.summary()
+        else:
+            for filename in self.filelist:
+                _, trace_number = self.get_binary_file_points_and_traces(filename)
+                self.header_handler.increment_number_of_traces(trace_number)
     
     def __parse_header_from_file(self, file):
         with open(file, 'rb') as f:
@@ -246,5 +279,21 @@ class TraceHandler:
     def toNumpy(self):
         raise NotImplementedError
     
-    def summary(self, header):
-        ...
+    def summary(self):
+        if self.header_handler.global_header_dict:
+            print("Merging {} traces with {} points each".format(
+                self.header_handler['NT'],
+                self.header_handler['NS']
+            ))
+    
+    def get_binary_file_points_and_traces(self, filename:str):
+        import os
+        file_size = os.path.getsize(filename)
+        point_size = self.header_handler['SC'] & 0x0f # in bytes
+        if file_size % point_size:
+            print("Possibly wrong data type")
+        point_number = file_size / point_size
+        if point_number % self.header_handler['NS']:
+            print("Possibly wrong data type")
+        trace_number = point_number / self.header_handler['NS']
+        return point_number, trace_number
