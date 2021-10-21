@@ -160,7 +160,6 @@ class HeaderHandler:
         if isinstance(title, bytes):
             self.global_header_dict[0x46] = title
     
-
     def __attribute_setter(self, attribute, value):
         if attribute == 'SC':
             self.__set_code(value)
@@ -190,11 +189,10 @@ class TraceHandler:
     def __init__(self, with_header=False) -> None:
         self.header_handler = HeaderHandler()
         self.filelist = []
-        self.buffer = []
+        self.buffer = b''
         self.transformer = lambda x: x
         self.with_header = with_header
         self.file_format = 'binary' # or 'npy', if 'npy', then with_header should be False
-
     
     def set_attribute(self, **kwargs):
         self.header_handler.set_header_manually(**kwargs)
@@ -226,12 +224,10 @@ class TraceHandler:
 
     def save2trs(self, output:str, crypto_data_getter=None, chunksize=1024*1024*4):
         '''
-        crypto_data_getter (i, j) return cryptodata that's to 
-        be embedded into the final trs file for j-th trace 
-        of i-th inputted trace file 
+        crypto_data_getter(cnt, i, j) return cryptodata that's to 
+        be embedded into the final trs file for j-th trace of i-th
+        inputted trace file, with cnt-th trace processed in total.
         '''
-        buffer:bytes = b''
-
         out = open(output, 'wb')
         out.write(self.header_handler.build())
         trace_cnt = 0
@@ -247,15 +243,17 @@ class TraceHandler:
                     assert len(one_trace) == self.header_handler['NS']
                     if self.header_handler['DS'] and crypto_data_getter:
                         crypto_data = crypto_data_getter(trace_cnt, i, j)
-                    buffer += crypto_data + one_trace
-                    if len(buffer) >= chunksize:
-                        out.write(buffer[:chunksize])
-                        buffer = buffer[chunksize:]
-        while buffer:
-            out.write(buffer[:chunksize])
-            buffer = buffer[chunksize:]
+                        assert len(crypto_data) == self.header_handler['DS']
+                    self.buffer += crypto_data + one_trace
+                    self.__write_buffer(out, chunksize)
+        self.__write_buffer(out, chunksize, clear=True)
         out.close()
     
+    def __write_buffer(self, outfile, chunksize, clear=False):
+        while len(self.buffer) >= chunksize or (clear and self.buffer):
+            outfile.write(self.buffer[:chunksize])
+            self.buffer = self.buffer[chunksize:]
+
     def generate_header(self):
         if self.with_header:
             for filename in self.filelist:
