@@ -1,7 +1,9 @@
+from io import FileIO
 import struct
 from collections import namedtuple
 from typing import Dict
 import numpy as np
+from numpy.core.fromnumeric import trace
 
 
 class HeaderHandler:
@@ -31,7 +33,7 @@ class HeaderHandler:
         header_item = [self._Item._make(item) for item in self.header_format]
         self.header_item = {item.tag:item for item in header_item}
 
-        self.global_header_dict = self.__make_empty()
+        self.global_header_dict = None
 
         self.StartMarker = b"\x5f\x00"
 
@@ -39,6 +41,27 @@ class HeaderHandler:
         for item in self.header_format:
             if item[1] == attribute:
                 return self.global_header_dict[item[0]]
+
+    def __bool__(self):
+        if self.global_header_dict:
+            return True
+        else:
+            return False
+    
+    # utility for making an empty header dictionary
+    def __make_empty(self):
+        return {tag:self.header_item[tag].value for tag in self.header_item}
+    
+    # utility for removing useless items from a header dictionary
+    def __trim(self, d:Dict):
+        header_dict = d.copy()
+        for tag in header_dict:
+            if header_dict[tag] != self.header_item[tag].value or self.header_item[tag].mo:
+                continue
+            else:
+                header_dict.pop(tag)
+        return header_dict
+
 
     # build a header from header dictionary, return header bytes
     def build(self, header_dict=None) -> bytes:
@@ -51,12 +74,12 @@ class HeaderHandler:
         for tag in self.header_item:
             item = self.header_item[tag]
             if tag in header_dict:
-                header += struct.pack('B', item.tag)
+                header += struct.pack('B', tag)
                 header += struct.pack('B', item.length)
                 if item.type == bytes:
-                    header += header_dict[item.tag]
+                    header += header_dict[tag]
                 else:
-                    header += struct.pack(item.type, header_dict[item.tag])
+                    header += struct.pack(item.type, header_dict[tag])
             elif item.mo:
                 raise ValueError("Mandatory field {} missing".format(item.name))
             else:
@@ -65,19 +88,6 @@ class HeaderHandler:
         header += self.StartMarker
         return header
     
-    # utility for making an empty header dictionary
-    def __make_empty(self):
-        return {tag:self.header_item[tag].value for tag in self.header_item}
-    
-    # utility for removing useless items from a header dictionary
-    def __trim(self, header_dict:Dict):
-        for tag in header_dict:
-            if header_dict[tag] != self.header_item[tag].value or self.header_item[tag].mo:
-                continue
-            else:
-                header_dict.pop(tag)
-        return header_dict
-
     # parse header from input bytes string
     def parse(self, bytestring:bytes):
         header_dict = self.__make_empty()
@@ -95,7 +105,10 @@ class HeaderHandler:
                 else:
                     assert bytestring[cur] == self.header_item[tag].length
                     cur += 1
-                    header_dict[tag] = struct.unpack(self.header_item[tag].type, bytestring[cur:cur+length])[0]
+                    header_dict[tag] = struct.unpack(
+                        self.header_item[tag].type, 
+                        bytestring[cur:cur+length]
+                        )[0]
             elif tag == 0x5f:
                 assert bytestring[cur] == 0
                 cur += 1
@@ -161,6 +174,8 @@ class HeaderHandler:
             self.global_header_dict[0x46] = title
     
     def __attribute_setter(self, attribute, value):
+        if not self.global_header_dict:
+            self.global_header_dict = self.__make_empty()
         if attribute == 'SC':
             self.__set_code(value)
         elif attribute == 'NT':
@@ -186,16 +201,46 @@ class HeaderHandler:
 
 
 class TraceHandler:
-    def __init__(self, with_header=False) -> None:
+    def __init__(self, with_header=False, embed_crypto_data=False) -> None:
         self.header_handler = HeaderHandler()
         self.filelist = []
         self.buffer = b''
         self.transformer = lambda x: x
         self.with_header = with_header
         self.file_format = 'binary' # or 'npy', if 'npy', then with_header should be False
+        self.embed_crypto = embed_crypto_data
+        self.file_info = {}
     
     def set_attribute(self, **kwargs):
         self.header_handler.set_header_manually(**kwargs)
+    
+    def __write_buffer(self, outfile:FileIO, chunksize, clear=False):
+        while len(self.buffer) >= chunksize or (clear and self.buffer):
+            outfile.write(self.buffer[:chunksize])
+            self.buffer = self.buffer[chunksize:]
+    
+    def __parse_header_from_file(self, file):
+        with open(file, 'rb') as f:
+            broad_header = f.read(2000) # max header length is less than 2000
+        header_dict, offset = self.header_handler.parse(broad_header)
+        if header_dict:
+            return header_dict, offset
+        else:
+            raise ValueError("Invalid header at {}.".format(*offset))
+
+    def __read_one_trace(self, IO:FileIO):
+        crypto_len = self.header_handler['DS']
+        sample_size = self.header_handler['SC'] & 0xf
+        sample_number = self.header_handler['NS']
+        if crypto_len and not self.embed_crypto:
+            size = crypto_len + sample_size * sample_number
+        else:
+            size = sample_size * sample_number
+        
+        buffer = IO.read(size)
+        if buffer:
+            assert len(buffer) == size
+        return buffer
 
     def generate_header_bytes(self):
         return self.header_handler.build()
@@ -218,6 +263,11 @@ class TraceHandler:
             raise NotImplementedError
         else:
             self.filelist.append(filename)
+            try:
+                header_dict, offset = self.__parse_header_from_file(filename)
+                self.file_info[filename] = [header_dict, offset]
+            except ValueError:
+                self.file_info[filename] = None
 
     def transform(self, transformer):
         self.transformer = transformer
@@ -228,31 +278,26 @@ class TraceHandler:
         be embedded into the final trs file for j-th trace of i-th
         inputted trace file, with cnt-th trace processed in total.
         '''
-        out = open(output, 'wb')
+        if self.embed_crypto:
+            assert crypto_data_getter
+
+        out:FileIO = open(output, 'wb')
         out.write(self.header_handler.build())
         trace_cnt = 0
         for i, file in enumerate(self.filelist):
-            with open(file, b'rb') as tracefile:
-                _, offset = self.__parse_header_from_file(filename)
-                tracefile.seek(offset, 0) # skip header
-                j = 0
-                while True:
-                    one_trace = tracefile.read(self.header_handler['NS'])
-                    j += 1
-                    if not one_trace: break
-                    assert len(one_trace) == self.header_handler['NS']
-                    if self.header_handler['DS'] and crypto_data_getter:
-                        crypto_data = crypto_data_getter(trace_cnt, i, j)
-                        assert len(crypto_data) == self.header_handler['DS']
-                    self.buffer += crypto_data + one_trace
-                    self.__write_buffer(out, chunksize)
+            tracefile = open(file, 'rb')
+            j = 0
+            while True:
+                one_trace = self.__read_one_trace(tracefile)
+                if not one_trace: break
+                crypto_data = b''
+                if self.embed_crypto:
+                    crypto_data = crypto_data_getter(trace_cnt, i, j)
+                self.buffer += crypto_data + one_trace
+                self.__write_buffer(out, chunksize)
+            tracefile.close()
         self.__write_buffer(out, chunksize, clear=True)
         out.close()
-    
-    def __write_buffer(self, outfile, chunksize, clear=False):
-        while len(self.buffer) >= chunksize or (clear and self.buffer):
-            outfile.write(self.buffer[:chunksize])
-            self.buffer = self.buffer[chunksize:]
 
     def generate_header(self):
         if self.with_header:
@@ -262,36 +307,40 @@ class TraceHandler:
             self.summary()
         else:
             for filename in self.filelist:
-                _, trace_number = self.get_binary_file_points_and_traces(filename)
+                trace_number = self.get_file_trace_number(filename)
                 self.header_handler.increment_number_of_traces(trace_number)
-    
-    def __parse_header_from_file(self, file):
-        with open(file, 'rb') as f:
-            broad_header = f.read(2000) # max header length is less than 2000
-        header_dict, offset = self.header_handler.parse(broad_header)
-        if header_dict:
-            return header_dict, offset
-        else:
-            raise ValueError("Header confilict at tag {}! before: {}; this: {}.".format(*offset))
     
     def toNumpy(self):
         raise NotImplementedError
     
     def summary(self):
-        if self.header_handler.global_header_dict:
+        if self.header_handler:
             print("Merging {} traces with {} points each".format(
                 self.header_handler['NT'],
                 self.header_handler['NS']
-            ))
+            ), end='')
+        else:
+            raise LookupError("No header provided")
+        if self.header_handler['DS']:
+            print(" and {} bytes of crypto data".format(self.header_handler['DS']), end='')
+        print()
     
-    def get_binary_file_points_and_traces(self, filename:str):
+    def get_file_trace_number(self, filename:str):
+        # (crypto_len + sample_size*sample_number) * trace_number + header_length == file_size
         import os
-        file_size = os.path.getsize(filename)
-        point_size = self.header_handler['SC'] & 0x0f # in bytes
-        if file_size % point_size:
-            print("Possibly wrong data type")
-        point_number = file_size / point_size
-        if point_number % self.header_handler['NS']:
-            print("Possibly wrong data type")
-        trace_number = point_number / self.header_handler['NS']
-        return point_number, trace_number
+        if self.file_info[filename]:
+            header, _ = self.file_info[filename]
+            return header['NT'] # in bytes
+        else: # headerless
+            file_size = os.path.getsize(filename)
+            if not self.header_handler:
+                raise LookupError("No header provided")
+            crypto_len = 0
+            if self.header_handler['DS']:
+                crypto_len = self.header_handler['DS']
+            sample_size = self.header_handler['SC'] & 0xf
+            assert sample_size in [1,2,4]
+            sample_number = self.header_handler['NS']
+            if file_size % (crypto_len + sample_size*sample_number):
+                print("Unaligned data")
+            return file_size // (crypto_len + sample_size*sample_number)
