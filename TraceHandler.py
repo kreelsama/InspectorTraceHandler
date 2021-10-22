@@ -3,8 +3,9 @@ import struct
 from collections import namedtuple
 from typing import Dict
 import numpy as np
-from numpy.core.fromnumeric import trace
-
+from numpy.lib.arraysetops import isin
+from numpy.lib.function_base import append
+from tqdm import tqdm
 
 class HeaderHandler:
     header_format = [
@@ -268,6 +269,15 @@ class TraceHandler:
                 self.file_info[filename] = [header_dict, offset]
             except ValueError:
                 self.file_info[filename] = None
+    
+    def append_files(self, filenames:iter):
+        if isinstance(filenames, str):
+            self.append_file(filenames)
+        elif isinstance(filenames, iter):
+            for file in filenames:
+                self.append_file(file)
+        else:
+            raise NameError
 
     def transform(self, transformer):
         self.transformer = transformer
@@ -284,19 +294,23 @@ class TraceHandler:
         out:FileIO = open(output, 'wb')
         out.write(self.header_handler.build())
         trace_cnt = 0
+        bar = tqdm(total=self.header_handler['NT'])
         for i, file in enumerate(self.filelist):
+            bar.set_description("Processing {}".format(file))
             tracefile = open(file, 'rb')
             j = 0
             while True:
                 one_trace = self.__read_one_trace(tracefile)
                 if not one_trace: break
+                bar.update(1)
                 crypto_data = b''
                 if self.embed_crypto:
                     crypto_data = crypto_data_getter(trace_cnt, i, j)
-                self.buffer += crypto_data + one_trace
+                self.buffer += crypto_data + self.transformer(one_trace)
                 self.__write_buffer(out, chunksize)
             tracefile.close()
         self.__write_buffer(out, chunksize, clear=True)
+        bar.close()
         out.close()
 
     def generate_header(self):
