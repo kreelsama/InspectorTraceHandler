@@ -3,35 +3,34 @@ import struct
 from collections import namedtuple
 from typing import Dict
 import numpy as np
-from numpy.lib.arraysetops import isin
-from numpy.lib.function_base import append
 from tqdm import tqdm
 
+header_format = [
+    # Type: int->I, short->h, unsigned char(byte)-> B, char[]->bytes
+    # Consistency: whether to tolerate with different values when merging headers
+    # tag  Name M/O Type Length De   Consistency  Desc
+    [0x41, 'NT', 1,  'I',   4,    0,           0, "Number of traces"],
+    [0x42, 'NS', 1,  'I',   4,    0,           1, "Number of samples per trace"],
+    [0x43, 'SC', 1,  'B',   1,    0,           1, "Sample Coding"],
+    [0x44, 'DS', 0,  'h',   2,    0,           1, "Length of cryptographic data included in trace"],
+    [0x45, 'TS', 0,  'B',   1,    0,           0, "Title space reserved per trace"],
+    [0x46, 'GT', 0,bytes,  -1, None,           0, "Global trace title"],
+    [0x47, 'DC', 0,bytes,  -1, None,           0, "Description"],
+    [0x48, 'XO', 0,  'I',   4,    0,           0, "Offset in X-axis for trace representation"],
+    [0x49, 'XL', 0,bytes,  -1, None,           0, "Label of X-axis"],
+    [0x4A, 'YL', 0,bytes,  -1, None,           0, "Label of Y-axis"],
+    [0x4B, 'XS', 0,  'f',   4,    1,           1, "Scale value for X-axis"],
+    [0x4C, 'YS', 0,  'f',   4,    1,           1, "Scale value for Y-axis"],
+    [0x4D, 'TO', 0,  'I',   4,    0,           0, "Trace offset for displaying trace numbers"],
+    [0x4E, 'LS', 0,  'B',   1,    0,           1, "Logarithmic scale"],
+    #[0x5f, 'TB', 1, None,   0,    0,           1, "Trace block marker: an empty TLV that marks the end of the header"]
+]
+_Item = namedtuple("Item", ["tag", "name", "mo", "type", "length", "value", "consist", "descr"])
+
 class HeaderHandler:
-    header_format = [
-        # Type: int->I, short->h, unsigned char(byte)-> B, char[]->bytes
-        # Consistency: whether to tolerate with different values when merging headers
-        # tag  Name  M/O Type Length De   Consistency  Desc
-        [0x41, 'NT', 1,  'I',   4,    0,           0, "Number of traces"],
-        [0x42, 'NS', 1,  'I',   4,    0,           1, "Number of samples per trace"],
-        [0x43, 'SC', 1,  'B',   1,    0,           1, "Sample Coding"],
-        [0x44, 'DS', 0,  'h',   2,    0,           1, "Length of cryptographic data included in trace"],
-        [0x45, 'TS', 0,  'B',   1,    0,           0, "Title space reserved per trace"],
-        [0x46, 'GT', 0,bytes,  -1, None,           0, "Global trace title"],
-        [0x47, 'DC', 0,bytes,  -1, None,           0, "Description"],
-        [0x48, 'XO', 0,  'I',   4,    0,           0, "Offset in X-axis for trace representation"],
-        [0x49, 'XL', 0,bytes,  -1, None,           0, "Label of X-axis"],
-        [0x4A, 'YL', 0,bytes,  -1, None,           0, "Label of Y-axis"],
-        [0x4B, 'XS', 0,  'f',   4,    1,           1, "Scale value for X-axis"],
-        [0x4C, 'YS', 0,  'f',   4,    1,           1, "Scale value for Y-axis"],
-        [0x4D, 'TO', 0,  'I',   4,    0,           0, "Trace offset for displaying trace numbers"],
-        [0x4E, 'LS', 0,  'B',   1,    0,           1, "Logarithmic scale"],
-        #[0x5f, 'TB', 1, None,   0,    0,           1, "Trace block marker: an empty TLV that marks the end of the header"]
-    ]
-    _Item = namedtuple("Item", ["tag", "name", "mo", "type", "length", "value", "consist", "descr"])
 
     def __init__(self) -> None:
-        header_item = [self._Item._make(item) for item in self.header_format]
+        header_item = [_Item._make(item) for item in header_format]
         self.header_item = {item.tag:item for item in header_item}
 
         self.global_header_dict = None
@@ -39,7 +38,7 @@ class HeaderHandler:
         self.StartMarker = b"\x5f\x00"
 
     def __getitem__(self, attribute):
-        for item in self.header_format:
+        for item in header_format:
             if item[1] == attribute:
                 return self.global_header_dict[item[0]]
 
@@ -54,14 +53,14 @@ class HeaderHandler:
         return {tag:self.header_item[tag].value for tag in self.header_item}
     
     # utility for removing useless items from a header dictionary
-    def __trim(self, d:Dict):
-        header_dict = d.copy()
+    def __trim(self, header_dict:Dict):
+        new_header = {}
         for tag in header_dict:
             if header_dict[tag] != self.header_item[tag].value or self.header_item[tag].mo:
-                continue
+                new_header[tag] = header_dict[tag]
             else:
-                header_dict.pop(tag)
-        return header_dict
+                continue
+        return new_header
 
 
     # build a header from header dictionary, return header bytes
@@ -76,10 +75,11 @@ class HeaderHandler:
             item = self.header_item[tag]
             if tag in header_dict:
                 header += struct.pack('B', tag)
-                header += struct.pack('B', item.length)
                 if item.type == bytes:
+                    header += struct.pack('B', len(header_dict[tag]))
                     header += header_dict[tag]
                 else:
+                    header += struct.pack('B', item.length)
                     header += struct.pack(item.type, header_dict[tag])
             elif item.mo:
                 raise ValueError("Mandatory field {} missing".format(item.name))
@@ -183,7 +183,7 @@ class HeaderHandler:
             raise ValueError("Can't set number of traces. \
                 This attribute should be updated automatically.")
         else:
-            for item in self.header_format:
+            for item in header_format:
                 if item[1] == attribute:
                     tag = item[0]
                     self.global_header_dict[tag] = value
@@ -193,6 +193,7 @@ class HeaderHandler:
             for tag in self.header_item:
                 if self.header_item[tag].name == attr:
                     self.__attribute_setter(attr, kwargs[attr])
+                    break
             else:
                 raise ValueError("Unknown header attribute {}".format(attr))
 
