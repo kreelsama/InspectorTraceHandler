@@ -149,7 +149,6 @@ class HeaderHandler:
             self.global_header_dict = header_dict
     
     def __set_code(self, dtype):
-        SC_tag = 0x43
         encode = 0
         if dtype == 'int8' or dtype == 'byte':
             encode  = 0x01
@@ -163,10 +162,10 @@ class HeaderHandler:
         else:
             ValueError("Unrecognized dtype:{}".format(dtype))
 
-        if self.global_header_dict[SC_tag]:
-            assert encode == self.global_header_dict[SC_tag]
+        if self['SC']:
+            assert encode == self['SC']
         else:
-            self.global_header_dict[SC_tag] = encode
+            self['SC'] = encode
     
     def set_title(self, title):
         if isinstance(title, str):
@@ -351,7 +350,7 @@ class TraceHandler:
             if not self.header_handler:
                 raise LookupError("No header provided")
             crypto_len = 0
-            if self.header_handler['DS']:
+            if self.header_handler['DS'] and not self.embed_crypto:
                 crypto_len = self.header_handler['DS']
             sample_size = self.header_handler['SC'] & 0xf
             assert sample_size in [1,2,4]
