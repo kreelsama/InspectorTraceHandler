@@ -213,9 +213,6 @@ class TraceHandler:
         self.embed_crypto = embed_crypto_data
         self.file_info = {}
     
-    def set_attribute(self, **kwargs):
-        self.header_handler.set_header_manually(**kwargs)
-    
     def __write_buffer(self, outfile:FileIO, chunksize, clear=False):
         while len(self.buffer) >= chunksize or (clear and self.buffer):
             outfile.write(self.buffer[:chunksize])
@@ -228,7 +225,7 @@ class TraceHandler:
         if header_dict:
             return header_dict, offset
         else:
-            raise ValueError("Invalid header at {}.".format(*offset))
+            raise ValueError("Invalid header at {}.".format(offset))
 
     def __read_one_trace(self, IO:FileIO):
         crypto_len = self.header_handler['DS']
@@ -247,6 +244,9 @@ class TraceHandler:
     def generate_header_bytes(self):
         return self.header_handler.build()
     
+    def set_attribute(self, **kwargs):
+        self.header_handler.set_header_manually(**kwargs)
+
     def set_header(self, header):
         if isinstance(header, bytes):
             header_dict, cur = self.header_handler.parse(header)
@@ -292,6 +292,9 @@ class TraceHandler:
         if self.embed_crypto:
             assert crypto_data_getter
 
+        if not self.header_handler:
+            self.generate_header()
+        
         out:FileIO = open(output, 'wb')
         out.write(self.header_handler.build())
         trace_cnt = 0
@@ -357,5 +360,5 @@ class TraceHandler:
             assert sample_size in [1,2,4]
             sample_number = self.header_handler['NS']
             if file_size % (crypto_len + sample_size*sample_number):
-                print("Unaligned data")
+                print("file {} unaligned data".format(filename))
             return file_size // (crypto_len + sample_size*sample_number)
