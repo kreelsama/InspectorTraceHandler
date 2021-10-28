@@ -165,7 +165,8 @@ class HeaderHandler:
         if self['SC']:
             assert encode == self['SC']
         else:
-            self['SC'] = encode
+            SC_tag = 0x43
+            self.global_header_dict[SC_tag] = encode
     
     def set_title(self, title):
         if isinstance(title, str):
