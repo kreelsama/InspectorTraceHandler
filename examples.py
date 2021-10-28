@@ -4,7 +4,7 @@ from TraceHandler import TraceHandler
 def merge_file_without_header():
     filename_format = "/mnt/h/FPGA_trace/raw/FPGA_{:0>4}.trs"
     handler = TraceHandler(embed_crypto_data=True)
-    for idx in range(100):
+    for idx in range(10000):
         filename = filename_format.format(idx)
         handler.append_file(filename)
     number_of_points = os.path.getsize(filename_format.format(0))

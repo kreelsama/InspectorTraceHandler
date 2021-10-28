@@ -298,7 +298,7 @@ class TraceHandler:
         out:FileIO = open(output, 'wb')
         out.write(self.header_handler.build())
         trace_cnt = 0
-        bar = tqdm(total=self.header_handler['NT'])
+        bar = tqdm(total=self.header_handler['NT'], unit="traces")
         for i, file in enumerate(self.filelist):
             bar.set_description("Processing {}".format(file))
             tracefile = open(file, 'rb')
@@ -320,7 +320,7 @@ class TraceHandler:
     def generate_header(self):
         if self.with_header:
             for filename in self.filelist:
-                header, _ = self.__parse_header_from_file(filename)
+                header, _ = self.file_info[filename][0]
                 self.header_handler.update(header)
             self.summary()
         else:
