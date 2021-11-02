@@ -2,9 +2,9 @@ import os
 from TraceHandler import TraceHandler
 
 def merge_file_without_header():
-    filename_format = "/mnt/h/FPGA_trace/raw/FPGA_{:0>4}.trs"
+    filename_format = "/mnt/h/FPGA_trace/raw/FPGA_{:0>4}_aligned.trs"
     handler = TraceHandler(embed_crypto_data=True)
-    for idx in range(10000):
+    for idx in range(10):
         filename = filename_format.format(idx)
         handler.append_file(filename)
     number_of_points = os.path.getsize(filename_format.format(0))
@@ -25,8 +25,8 @@ def merge_file_without_header():
             data = fp.read(1000)
         return xor_bytes(data[0x104:0x114], data[0x11C:0x12C])
     handler.generate_header()
-    
-    handler.save2trs("/mnt/c/Users/kreel/Desktop/test.trs", crypto_data_getter=data_getter)
+
+    handler.save2trs("/mnt/c/Users/kreel/Desktop/test_aligned.trs", crypto_data_getter=data_getter)
 
 def test_header():
     handler = TraceHandler(embed_crypto_data=False)
