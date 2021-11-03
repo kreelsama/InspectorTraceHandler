@@ -19,9 +19,7 @@ class TraceHandler:
             self.buffer = self.buffer[chunksize:]
     
     def __parse_header_from_file(self, file):
-        with open(file, 'rb') as f:
-            broad_header = f.read(2000) # max header length is less than 2000
-        header_dict, offset = self.header_handler.parse(broad_header)
+        header_dict, offset = self.header_handler.parse_file(file)
         if header_dict:
             return header_dict, offset
         else:
@@ -129,7 +127,7 @@ class TraceHandler:
                 self.header_handler.increment_number_of_traces(trace_number)
     
     def toNumpy(self):
-        raise NotImplementedError
+        raise NotImplementedError("toNumpy not implemented")
     
     def summary(self):
         if self.header_handler:

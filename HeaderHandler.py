@@ -26,7 +26,6 @@ header_format = [
 _Item = namedtuple("Item", ["tag", "name", "mo", "type", "length", "value", "consist", "descr"])
 
 class HeaderHandler:
-
     def __init__(self) -> None:
         header_item = [_Item._make(item) for item in header_format]
         self.header_item = {item.tag:item for item in header_item}
@@ -115,6 +114,12 @@ class HeaderHandler:
                 return None, cur-1
         return header_dict, cur
     
+    # This utility can be further improved to reduce IO afford
+    def parse_file(self, fname:str):
+        with open(fname, 'rb') as IO:
+            broad_header = IO.read(2000)
+        return self.parse(broad_header)
+
     # input multiple headers, check if they can merge
     # can: return merged header. cannot: return false
     def merge(self, *headers):
@@ -197,3 +202,34 @@ class HeaderHandler:
     def increment_number_of_traces(self, incr):
         NT_tag = 0x41
         self.global_header_dict[NT_tag] += incr
+    
+    @property
+    def crypto_length(self):
+        return self['DS']
+    
+    @property
+    def sample_length(self):
+        return self['SC'] & 0xf
+    
+    @property
+    def sample_coding(self):
+        if self['SC']>>8:
+            return 'float'
+        else:
+            return 'int'
+    
+    @property
+    def number_of_traces(self):
+        return self['NT']
+    
+    @property
+    def samples_per_trace(self):
+        return self['NS']
+    
+    @property
+    def single_trace_byte_length(self):
+        return self.samples_per_trace * self.sample_length
+    
+    @property
+    def trace_interval(self):
+        return self.single_trace_byte_length + self.crypto_length
