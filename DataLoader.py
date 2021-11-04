@@ -1,10 +1,9 @@
 import numpy as np
 from .TraceHandler import HeaderHandler as inspector_header
-from collections.abc import Iterable 
 
 # This class can only process SINGLE Inspector file with header
 class InspectorFileDataLoader:
-    def __init__(self, fileinput=None, with_header=False) -> None:
+    def __init__(self, fileinput=None, with_header=False, *args, **kargs) -> None:
         self.header_handler = inspector_header()
         if with_header:
             self.header, self.start_offset = self.header_handler.parse_file(fileinput)
@@ -15,9 +14,11 @@ class InspectorFileDataLoader:
                 ), dtype=np.dtype('uint8'))
             self.__zero_offset()
             self.index = np.arange(self.header_handler.number_of_traces)
+            self.prepare(*args, **kargs)
         else:
             raise NotImplementedError("planning")
         self.cur = 0
+        
     # Using this attribute beautifies code
     @property
     def traces(self):
@@ -49,9 +50,9 @@ class InspectorFileDataLoader:
         return r
 
     def prepare(self, cryptolen=0):
-        ...
+        self.__prepare_crypto_data()
 
-    def get_crypto_data(self):
+    def __prepare_crypto_data(self):
         self.__zero_offset()
         for idx in range(self.header_handler.number_of_traces):
             one = self.__read(self.header_handler.crypto_length)
