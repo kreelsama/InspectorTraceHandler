@@ -18,7 +18,11 @@ class InspectorFileDataLoader:
         else:
             raise NotImplementedError("planning")
         self.cur = 0
-        
+        self.mask = None
+    
+    def __len__(self):
+        return self.header_handler.number_of_traces
+    
     # Using this attribute beautifies code
     @property
     def traces(self):
@@ -73,13 +77,28 @@ class InspectorFileDataLoader:
         if isinstance(index, int):
             # eg: [101]
             self.__ith(self.index[index])
-            one_trace = self.__read(self.header_handler.single_trace_byte_length)
-            return self.organize_trace_data(one_trace)
+            return self.__get_trace_data()
         else:
-            trace_begin, trace_end, trace_step = None, None, None
-            sample_begin, sample_end, sample_step = None, None, None
             ...
-            
+    
+    def __get_trace_data(self, index=None):
+        if not index:
+            data = self.__read(self.header_handler.single_trace_byte_length)
+        elif isinstance(index, int):
+            self.__forward(index)
+            data = self.__read(self.header_handler.sample_length)
+            self.__rewind(index)
+        elif isinstance(index, slice):
+            data = []
+            indice = index.start
+            self.__forward(indice)
+            while indice < index.stop:
+                ...
+        return data
+
+    def set_trace_mask(self, mask):
+        ...
+    
     def shuffle(self):
         np.random.shuffle(self.index)
         
