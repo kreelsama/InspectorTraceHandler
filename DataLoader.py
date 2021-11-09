@@ -1,3 +1,4 @@
+import struct
 import numpy as np
 from numpy.core.fromnumeric import trace
 from .TraceHandler import HeaderHandler as inspector_header
@@ -157,6 +158,51 @@ class InspectorFileDataLoader:
 
     def set_trace_mask(self, mask):
         ...
-        
+    
+    def __parse_single_sample(self, b:bytes):
+        assert len(b) == self.header_handler.sample_length
+        if self.header_handler.sample_coding == 'float':
+            return struct.unpack('f', b)[0]
+        else:
+            assert self.header_handler.sample_coding == 'int'
+            ## default is SIGNED INT
+            if self.header_handler.sample_length == 1:
+                return struct.unpack('b', b)[0]
+            elif self.header_handler.sample_length == 2:
+                return struct.unpack('h', b)
+            else:
+                return struct.unpack('i', b)[0]
+
+    def __frombytes(self, b:bytes):
+        l = len(b)
+        assert l % self.header_handler.sample_length == 0
+        nsamples = l // self.header_handler.sample_length
+        samples = []
+        for i in range(0, nsamples, self.header_handler.sample_length):
+            sample = self.__parse_single_sample(b[i:i+self.header_handler.sample_length])
+            samples.append(sample)
+        return samples
+    
+    def __fromlist(self, bytelist:list):
+        samples = []
+        for b in bytelist:
+            sample = self.__frombytes(b)
+            samples += sample
+        return samples
+
     def organize_trace_data(self, data):
-        ...
+        ext = []
+        if isinstance(data, list):
+            for d in data:
+                if isinstance(d, bytes):
+                    ext.append(self.__frombytes(d))
+                else:
+                    ext.append(self.__fromlist(d))
+        elif isinstance(data, bytes):
+            ext.append(self.__frombytes(data))
+        
+        if len(ext) == 1 and isinstance(exit, list):
+            ext = ext[0]
+
+        return ext
+        
