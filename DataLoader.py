@@ -4,8 +4,9 @@ from .TraceHandler import HeaderHandler as inspector_header
 
 # This class can only process SINGLE Inspector file with header
 class InspectorFileDataLoader:    
-    def __init__(self, fileinput=None, with_header=False, *args, **kargs) -> None:
+    def __init__(self, fileinput=None, with_header=False, *args, **kwargs) -> None:
         self.header_handler = inspector_header()
+        self.data_indicator = ''
         if with_header:
             self.header, self.start_offset = self.header_handler.parse_file(fileinput)
             self.header_handler.update(self.header)
@@ -14,7 +15,8 @@ class InspectorFileDataLoader:
                 self.header_handler.number_of_traces, self.header_handler.crypto_length
                 ), dtype=np.dtype('uint8'))
             self.__zero_offset()
-            self.prepare(*args, **kargs)
+            self.prepare(*args, **kwargs)
+
         else:
             raise NotImplementedError("planning")
         self.cur = 0
@@ -42,8 +44,9 @@ class InspectorFileDataLoader:
         self.__forward(self.header_handler.trace_interval)
     
     def __ith(self, i):
-        self.io.seek((i - self.cur) * self.header_handler.trace_interval, 1)
-        self.cur = i
+        self.__zero_offset()
+        self.io.seek(i * self.header_handler.trace_interval, 1)
+        # self.cur = i
 
     def __read(self, nbytes=None):
         r = self.io.read(nbytes)
@@ -55,9 +58,27 @@ class InspectorFileDataLoader:
 
     def __forward_samples(self, nsamples=0):
         return self.__forward(nsamples * self.header_handler.sample_length)
+    
+    def __rewind_samples(self, nsamples=0):
+        return self.__rewind(nsamples * self.header_handler.sample_length)
+
+    def __read_samples(self, nsamples=0):
+        return self.__read(nsamples * self.header_handler.sample_length)
 
     def prepare(self, cryptolen=0):
         self.__prepare_crypto_data()
+        if self.header_handler.sample_coding == 'float':
+            self.indicator = 'f'
+        else:
+            assert self.header_handler.sample_coding == 'int'
+            ## default is SIGNED INT
+            if self.header_handler.sample_length == 1:
+                self.indicator = 'b'
+            elif self.header_handler.sample_length == 2:
+                self.indicator = 'h'
+            else:
+                self.indicator = 'i'
+        
 
     def __prepare_crypto_data(self):
         self.__zero_offset()
@@ -89,7 +110,9 @@ class InspectorFileDataLoader:
             trace_index, sample_index = index, None
             
         if isinstance(trace_index, int):
-            if trace_index > self.header_handler.number_of_traces:
+            if trace_index < 0:
+                trace_index = self.header_handler.number_of_traces + trace_index
+            if trace_index >= self.header_handler.number_of_traces or trace_index < 0:
                 raise IndexError("Trace index out of range")
             traces = [trace_index]
         elif isinstance(trace_index, slice):
@@ -108,27 +131,29 @@ class InspectorFileDataLoader:
 
         return self.organize_trace_data(data)
 
-    def __get_trace_data(self, index=None):
-        data = self.__read(self.header_handler.single_trace_byte_length)
-        if not index:
-            pass
+    def __get_trace_data(self, index=None)->bytes:
+        data = b''
+        if index is None:
+            data = self.__read(self.header_handler.single_trace_byte_length)
         elif isinstance(index, int):
-            if index >= self.header_handler.samples_per_trace:
-                data = b''
+            if index < 0:
+                index = self.header_handler.samples_per_trace + index
+            if index >= self.header_handler.samples_per_trace or index < 0:
+                pass
             else:
-                data = data[index: index+self.header_handler.sample_length]
+                self.__forward_samples(index)
+                data = self.__read_samples(1)
         elif isinstance(index, slice):
             # This eliminates outbound indices
             start, stop, step = index.indices(self.header_handler.samples_per_trace)
             self.__forward_samples(start)
             if step == 1:
-                data = data[start*self.header_handler.sample_length
-                           :stop*self.header_handler.sample_length]
+                data = self.__read_samples(stop - start)
             else:
-                data = [data[i*self.header_handler.sample_length:
-                            (i+1)*self.header_handler.sample_length]
-                            for i in range(start, stop, step)
-                ]
+                while start < stop if step > 0 else start > stop:
+                    data += self.__read_samples(1)
+                    start += step
+                    self.__forward_samples(step) # when step < 0 it basically rewinds
         else:
             try:
                 samples = [i if i >= 0 else self.header_handler.samples_per_trace + i 
@@ -136,13 +161,14 @@ class InspectorFileDataLoader:
             except TypeError:
                 print("Uniterable indexing unapproved")
             for each in samples:
-                if each >= self.header_handler.samples_per_trace:
+                if each >= self.header_handler.samples_per_trace or each < 0:
                     raise IndexError("Index out of range")
             if samples:
-                data = [data[i*self.header_handler.sample_length:
-                    (i+1)*self.header_handler.sample_length]
-                    for i in samples
-                ]
+                self.__forward_samples(samples[0])
+                data += self.__read_samples(1)
+                for i in range(1, len(samples)):
+                    self.__forward_samples(samples[i] - samples[i-1])
+                    data += self.__read_samples(1)
             else:
                 data = b''
 
@@ -151,45 +177,16 @@ class InspectorFileDataLoader:
     def set_trace_mask(self, mask):
         ...
     
-    def __parse_single_sample(self, b:bytes):
-        assert len(b) == self.header_handler.sample_length
-        if self.header_handler.sample_coding == 'float':
-            return struct.unpack('f', b)[0]
-        else:
-            assert self.header_handler.sample_coding == 'int'
-            ## default is SIGNED INT
-            if self.header_handler.sample_length == 1:
-                return struct.unpack('b', b)[0]
-            elif self.header_handler.sample_length == 2:
-                return struct.unpack('h', b)
-            else:
-                return struct.unpack('i', b)[0]
-
     def __frombytes(self, b:bytes):
-        l = len(b)
-        assert l % self.header_handler.sample_length == 0
-        nsamples = l // self.header_handler.sample_length
-        samples = []
-        for i in range(0, nsamples, self.header_handler.sample_length):
-            sample = self.__parse_single_sample(b[i:i+self.header_handler.sample_length])
-            samples.append(sample)
-        return samples
-    
-    def __fromlist(self, bytelist:list):
-        samples = []
-        for b in bytelist:
-            sample = self.__frombytes(b)
-            samples += sample
-        return samples
+        assert len(b) % self.header_handler.sample_length == 0
+        l = len(b) // self.header_handler.sample_length
+        return struct.unpack(self.indicator*l, b)
 
     def organize_trace_data(self, data):
         ext = []
         if isinstance(data, list):
             for d in data:
-                if isinstance(d, bytes):
-                    ext.append(self.__frombytes(d))
-                else:
-                    ext.append(self.__fromlist(d))
+                ext.append(self.__frombytes(d))
         elif isinstance(data, bytes):
             ext.append(self.__frombytes(data))
         
