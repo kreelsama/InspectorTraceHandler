@@ -88,29 +88,29 @@ class HeaderHandler:
     # parse header from input bytes string
     def parse(self, bytestring:bytes):
         header_dict = self.__make_empty()
-        length = len(bytestring)
+        length_all = len(bytestring)
         cur = 0
-        while cur < length:
+        while cur < length_all:
             tag = bytestring[cur]
             cur += 1
+            length = bytestring[cur]
             if tag in self.header_item:
                 if self.header_item[tag].type == bytes:
-                    length = bytestring[cur]
                     cur += 1
-                    header_dict[tag] = bytestring[cur:cur+length]
-                    cur += length
                 else:
-                    assert bytestring[cur] == self.header_item[tag].length
+                    assert length == self.header_item[tag].length
                     cur += 1
                     header_dict[tag] = struct.unpack(
                         self.header_item[tag].type, 
                         bytestring[cur:cur+length]
                         )[0]
+                cur += length
             elif tag == 0x5f:
                 assert bytestring[cur] == 0
                 cur += 1
                 break
             else:
+                print(tag)
                 return None, cur-1
         return header_dict, cur
     
