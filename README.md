@@ -92,7 +92,7 @@ This is created for saving system memory. This utility currently suits for readi
 
 ```python
 # This will be a bit slower because crypto data is loaded during initialization
-dataloader = InspectorFileDataLoader(with_header=True)
+dataloader = InspectorFileDataLoader(filename, with_header=True)
 
 # trace number 5
 dataloader[5]
@@ -120,7 +120,7 @@ Indexing is basically like numpy array and matlab matrix.
 
 **Note**: It is not recommended to index all traces first and then index selected traces subsequently like  `dataloader[:][100:200]` to get trace from 100 to 200. This basically loads all traces into your memory and then performing indexing afterwards.
 
-**Performance Note:** Every indexing is directly performed on you file system, so a good hard drive is preferred, or the indexing could be slow.
+**Performance Note:** Every indexing is directly performed on your file system, so a good hard drive is preferred, or the indexing could be slow.
 
 **Trace to numpy**
 if your memory is enough you can:
