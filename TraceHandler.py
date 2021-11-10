@@ -73,11 +73,9 @@ class TraceHandler:
     def append_files(self, filenames:iter):
         if isinstance(filenames, str):
             self.append_file(filenames)
-        elif isinstance(filenames, iter):
+        else:
             for file in filenames:
                 self.append_file(file)
-        else:
-            raise NameError
 
     def transform(self, transformer):
         self.transformer = transformer
@@ -109,6 +107,7 @@ class TraceHandler:
                 crypto_data = b''
                 if self.embed_crypto:
                     crypto_data = crypto_data_getter(trace_cnt, i, j)
+                    assert len(crypto_data_getter) == self.header_handler.crypto_length
                 self.buffer += crypto_data + self.transformer(one_trace)
                 self.__write_buffer(out, chunksize)
                 trace_cnt += 1
