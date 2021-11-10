@@ -129,8 +129,8 @@ if your memory is enough you can:
  
  dataloader = InspectorFileDataLoader(with_header=True)
  trace_data = np.asarray(dataloader[:])
- crypto_data = np.asarray(crypto_data[:])
+ crypto_data = np.asarray(dataloader.crypto_data[:])
  np.save("tracedata.npy",  trace_data )
-  np.save("cryptodata.npy", crypto_data)
+ np.save("cryptodata.npy", crypto_data)
  ```
 
