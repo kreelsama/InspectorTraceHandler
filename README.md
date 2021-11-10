@@ -9,7 +9,7 @@ This script intends to ease the following procedures:
 - Convert tracefiles to numpy arrays
 - Indexing Tracefile as arrays while avoiding loading into system memory
 
-This Repo is under development and not completely usable at this time
+The Repo is partially usable at this time, so issues are open for undetected bugs and unimplemented functionalities.
 
 ### Tested Examples
 
@@ -48,9 +48,9 @@ hander.append_files(filenames)
 
 **Set header manually**
 
-This is quite necessary because at least three attributes (number of traces, trace encoding, samples per length) are needed for building a valid header.
+This is quite necessary because at least three attributes (number of traces, trace encoding, samples per trace) are needed for building a valid header.
 
-Number of traces will be calculated and incremented automatically thus no need to set. Trace encoding (SC) and samples per traces (NS) are required to set when dealing with headerless tracefiles.
+Number of traces will be calculated and incremented automatically thus no need to set. Trace encoding (SC) and samples per trace (NS) are required to set when dealing with headerless tracefiles.
 
 ```python
 handler.set_attribute(
