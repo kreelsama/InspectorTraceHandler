@@ -8,7 +8,6 @@ class InspectorFileDataLoader:
         self.header_handler = inspector_header()
         if with_header:
             self.header, self.start_offset = self.header_handler.parse_file(fileinput)
-            print(self.header, self.start_offset)
             self.header_handler.update(self.header)
             self.io = open(fileinput, 'rb')
             self.support_data = np.zeros(shape=(
@@ -54,20 +53,16 @@ class InspectorFileDataLoader:
             self.__zero_offset()
         return r
 
-    def __read_samples(self, nsamples=0):
-        return self.__read(nsamples * self.header_handler.sample_length)
-
     def __forward_samples(self, nsamples=0):
         return self.__forward(nsamples * self.header_handler.sample_length)
-    
-    def __rewind_samples(self, nsamples=0):
-        return self.__rewind(nsamples * self.header_handler.sample_length)
 
     def prepare(self, cryptolen=0):
-        pass
+        self.__prepare_crypto_data()
 
     def __prepare_crypto_data(self):
         self.__zero_offset()
+        if not self.header_handler.crypto_length:
+            return None
         for idx in range(self.header_handler.number_of_traces):
             one = self.__read(self.header_handler.crypto_length)
             self.support_data[idx] = list(one)

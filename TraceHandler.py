@@ -1,4 +1,5 @@
 from tqdm import tqdm
+import os
 
 from .HeaderHandler import HeaderHandler
 
@@ -85,7 +86,7 @@ class TraceHandler:
         '''
         crypto_data_getter(cnt, i, j) return cryptodata that's to 
         be embedded into the final trs file for j-th trace of i-th
-        inputted trace file, with cnt-th trace processed in total.
+        inputted trace file, with cnt-th trace processed currently.
         '''
         if self.embed_crypto:
             assert crypto_data_getter
@@ -98,7 +99,7 @@ class TraceHandler:
         trace_cnt = 0
         bar = tqdm(total=self.header_handler['NT'], unit="traces")
         for i, file in enumerate(self.filelist):
-            bar.set_description("Processing {}".format(file))
+            bar.set_description("Processing {}".format(os.path.split(file)[-1]))
             tracefile = open(file, 'rb')
             j = 0
             while True:
@@ -110,6 +111,7 @@ class TraceHandler:
                     crypto_data = crypto_data_getter(trace_cnt, i, j)
                 self.buffer += crypto_data + self.transformer(one_trace)
                 self.__write_buffer(out, chunksize)
+                trace_cnt += 1
             tracefile.close()
         self.__write_buffer(out, chunksize, clear=True)
         bar.close()

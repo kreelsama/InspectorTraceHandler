@@ -110,7 +110,6 @@ class HeaderHandler:
                 cur += 1
                 break
             else:
-                print(tag)
                 return None, cur-1
         return header_dict, cur
     
