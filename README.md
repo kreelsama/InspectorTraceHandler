@@ -128,7 +128,9 @@ if your memory is enough you can:
  import numpy as np
  
  dataloader = InspectorFileDataLoader(with_header=True)
- npy = np.asarray(dataloader)
- npy.save("tracedata.npy")
+ trace_data = np.asarray(dataloader[:])
+ crypto_data = np.asarray(crypto_data[:])
+ np.save("tracedata.npy",  trace_data )
+  np.save("cryptodata.npy", crypto_data)
  ```
 
