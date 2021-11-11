@@ -106,10 +106,10 @@ dataloader[:]
 # sample 100 from trace number 10 to 50
 dataloader[10:50, 100]
 
-# sample 3000:4000 from all traces
+# sample 3000:4000 from all traces by slicing
 dataloader[:, 3000:4000]
 
-# sample 1,100,1000 from trace 5,10,1000
+# sample 1,100,1000 from trace 5,10,1000 by list indexing*
 dataloader[[5,10,1000], [1,100,1000]]
 
 # crypro data number 10
@@ -120,7 +120,7 @@ Indexing basically works like numpy array and matlab matrix, returning data cont
 
 **Note**: It is not recommended to index all traces first and then index selected traces subsequently like  `dataloader[:][100:200]` to get trace from 100 to 200. This basically loads all traces into your memory and then performing indexing afterwards.
 
-**Performance Note:** Every indexing is directly performed on your file system and limited by your IO throughput, so a good hard drive is preferred, or the indexing could be slow.
+**Performance Note:** Every indexing is directly performed on your file system and limited by your IO throughput, so a good hard drive is preferred, or the indexing could be slow. An adequate SSD is expected to fetch data up to 20 times faster than normal HDD.
 
 **Trace to numpy**
 if your memory is enough you can:
@@ -133,3 +133,4 @@ if your memory is enough you can:
  np.save("cryptodata.npy", crypto_data)
  ```
 
+*\*Note*: List indexing is IO expensive, you should use range (slice) indexing more often.
