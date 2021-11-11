@@ -11,7 +11,7 @@ This script intends to ease the following procedures:
 
 The Repo is partially usable at this time, so issues are open for undetected bugs and unimplemented functionalities.
 
-### Tested Examples
+### Tested Cases
 
 #### Import this lib
 
@@ -116,11 +116,11 @@ dataloader[[5,10,1000], [1,100,1000]]
 dataloader.crypto_data[10]
 ```
 
-Indexing is basically like numpy array and matlab matrix.
+Indexing basically works like numpy array and matlab matrix, returning data container is a numpy ndarray object.
 
 **Note**: It is not recommended to index all traces first and then index selected traces subsequently like  `dataloader[:][100:200]` to get trace from 100 to 200. This basically loads all traces into your memory and then performing indexing afterwards.
 
-**Performance Note:** Every indexing is directly performed on your file system, so a good hard drive is preferred, or the indexing could be slow.
+**Performance Note:** Every indexing is directly performed on your file system and limited by your IO throughput, so a good hard drive is preferred, or the indexing could be slow.
 
 **Trace to numpy**
 if your memory is enough you can:
@@ -128,9 +128,8 @@ if your memory is enough you can:
  import numpy as np
  
  dataloader = InspectorFileDataLoader(with_header=True)
- trace_data = np.asarray(dataloader[:])
- crypto_data = np.asarray(dataloader.crypto_data[:])
- np.save("tracedata.npy",  trace_data )
+ crypto_data = dataloader.crypto_data
+ np.save("tracedata.npy",  trace_data)
  np.save("cryptodata.npy", crypto_data)
  ```
 
