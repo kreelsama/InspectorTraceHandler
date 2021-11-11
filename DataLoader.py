@@ -1,4 +1,3 @@
-import struct
 import numpy as np
 from .TraceHandler import HeaderHandler as inspector_header
 
@@ -7,6 +6,7 @@ class InspectorFileDataLoader:
     def __init__(self, fileinput=None, with_header=False, *args, **kwargs) -> None:
         self.header_handler = inspector_header()
         self.data_indicator = ''
+        self.data_unpacker = None
         if with_header:
             self.header, self.start_offset = self.header_handler.parse_file(fileinput)
             self.header_handler.update(self.header)
@@ -68,16 +68,16 @@ class InspectorFileDataLoader:
     def prepare(self, cryptolen=0):
         self.__prepare_crypto_data()
         if self.header_handler.sample_coding == 'float':
-            self.indicator = 'f'
+            self.indicator = '<f'
         else:
             assert self.header_handler.sample_coding == 'int'
             ## default is SIGNED INT
             if self.header_handler.sample_length == 1:
-                self.indicator = 'b'
+                self.indicator = '<b'
             elif self.header_handler.sample_length == 2:
-                self.indicator = 'h'
+                self.indicator = '<h'
             else:
-                self.indicator = 'i'
+                self.indicator = '<i'
         
 
     def __prepare_crypto_data(self):
@@ -180,7 +180,7 @@ class InspectorFileDataLoader:
     def __frombytes(self, b:bytes):
         assert len(b) % self.header_handler.sample_length == 0
         l = len(b) // self.header_handler.sample_length
-        return struct.unpack(self.indicator*l, b)
+        return np.ndarray(shape=(l,), dtype=self.indicator, buffer=b)
 
     def organize_trace_data(self, data):
         ext = []
@@ -193,4 +193,4 @@ class InspectorFileDataLoader:
         if len(ext) == 1 and isinstance(ext, list):
             ext = ext[0]
 
-        return ext
+        return np.asarray(ext)
