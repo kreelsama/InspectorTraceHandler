@@ -9,7 +9,7 @@ This script intends to ease the following procedures:
 - Convert tracefiles to numpy arrays
 - Indexing Tracefile as arrays while avoiding loading into system memory
 
-This Repo is under development and not completely usable at this time
+The Repo is partially usable at this time, so issues are open for undetected bugs and unimplemented functionalities.
 
 ### Tested Examples
 
@@ -48,9 +48,9 @@ hander.append_files(filenames)
 
 **Set header manually**
 
-This is quite necessary because at least three attributes (number of traces, trace encoding, samples per length) are needed for building a valid header.
+This is quite necessary because at least three attributes (number of traces, trace encoding, samples per trace) are needed for building a valid header.
 
-Number of traces will be calculated and incremented automatically thus no need to set. Trace encoding (SC) and samples per traces (NS) are required to set when dealing with headerless tracefiles.
+Number of traces will be calculated and incremented automatically thus no need to set. Trace encoding (SC) and samples per trace (NS) are required to set when dealing with headerless tracefiles.
 
 ```python
 handler.set_attribute(
@@ -74,17 +74,17 @@ Then call `handler.generate_header()` to generate final header bytes. This proce
 handler.save2trs(filename, chunksize)
 ```
 
-This begins merging. `filename` is the final filename you want to save and chunksize if the number of bytes per writing to the filesystem (default to 4M).
+This begins merging. `filename` is the final filename you want to save and chunksize is the number of bytes per writing to the filesystem (default to 4M).
 
 **Embed crypto data into final tracefile**
 
-Use `handler = TraceHandler(with_header=<True/False>, embed_crypto=True)` to create object and set   crypto data length in the header by `SD=<length>` . When calling `save2trs`  a new function parameter `crypto_data_getter` should be giving, accepting 3 parameters `(cnt, i, j)` and returning corresponding crypto data bytes with length=`<length>`.  traces under processing is the `cnt`-th trace accumulated and is  `j`-th trace from `i`-th file. 
+Use `handler = TraceHandler(with_header=<True/False>, embed_crypto=True)` to create object and set crypto data length in the header by `DS=<length>` . When calling `save2trs`  a new function parameter `crypto_data_getter` should be giving, accepting 3 parameters `(cnt, i, j)` and returning corresponding crypto data bytes with length=`<length>`.  traces under processing is the `cnt`-th trace accumulated and is  `j`-th trace from `i`-th file. 
 
-*Note:* you can't embed crypto data if there already are crypto data defined in the header.
+*Note:* you can't embed crypto data if there already exists crypto data defined in the header.
 
 **Merging files with header** 
 
-Use `handler = TraceHandler(with_header=True)` and if there is no crypto data defined you can set `embed_crypto=True`  and use `set_attribute` to define crypto data length only (no need to set attributes that's already in the header). The call `save2trs` to merge.
+Use `handler = TraceHandler(with_header=True)` and if there is no crypto data defined you can set `embed_crypto=True`  and use `set_attribute` to define crypto data length only (no need to set attributes that's already in the header). Then call `save2trs` to merge.
 
 #### Indexing a single Inspector like an array
 
@@ -92,7 +92,7 @@ This is created for saving system memory. This utility currently suits for readi
 
 ```python
 # This will be a bit slower because crypto data is loaded during initialization
-dataloader = InspectorFileDataLoader(with_header=True)		
+dataloader = InspectorFileDataLoader(filename, with_header=True)
 
 # trace number 5
 dataloader[5]
@@ -120,7 +120,17 @@ Indexing is basically like numpy array and matlab matrix.
 
 **Note**: It is not recommended to index all traces first and then index selected traces subsequently like  `dataloader[:][100:200]` to get trace from 100 to 200. This basically loads all traces into your memory and then performing indexing afterwards.
 
-**Performance Note:** Every indexing is directly performed on you file system, so a good hard drive is preferred, or the indexing could be slow.
+**Performance Note:** Every indexing is directly performed on your file system, so a good hard drive is preferred, or the indexing could be slow.
 
+**Trace to numpy**
+if your memory is enough you can:
+ ```python
+ import numpy as np
  
+ dataloader = InspectorFileDataLoader(with_header=True)
+ trace_data = np.asarray(dataloader[:])
+ crypto_data = np.asarray(dataloader.crypto_data[:])
+ np.save("tracedata.npy",  trace_data )
+ np.save("cryptodata.npy", crypto_data)
+ ```
 
