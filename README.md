@@ -38,12 +38,12 @@ filenames = ['1.bin', '2.bin', ...]
 
 handler = TraceHandler(with_header=False)
 
-# reconmended
+# recommended
 for file in filenames:
     handler.append_file(file)
     
 # or if your filenames is iterable:
-hander.append_files(filenames)
+handler.append_files(filenames)
 ```
 
 **Set header manually**
@@ -118,7 +118,7 @@ dataloader.crypto_data[10]
 
 Indexing basically works like numpy array and matlab matrix, returning data container is a numpy ndarray object.
 
-**Note**: It is not recommended to index all traces first and then index selected traces subsequently like  `dataloader[:][100:200]` to get trace from 100 to 200. This basically loads all traces into your memory and then performing indexing afterwards.
+**Note**: It is not recommended to index all traces first and then index selected traces subsequently like  `dataloader[:][100:200]` to get trace from 100 to 200. This basically loads all traces into your memory and then perform indexing afterwards.
 
 **Performance Note:** Every indexing is directly performed on your file system and limited by your IO throughput, so a good hard drive is preferred, or the indexing could be slow. An adequate SSD is expected to fetch data up to 20 times faster than normal HDD.
 
