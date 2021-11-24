@@ -3,7 +3,7 @@ from .TraceHandler import HeaderHandler as inspector_header
 
 # This class can only process SINGLE Inspector file with header
 class InspectorFileDataLoader:    
-    def __init__(self, fileinput=None, with_header=False, *args, **kwargs) -> None:
+    def __init__(self, fileinput=None, with_header=False, parse_crypto_data=True, *args, **kwargs) -> None:
         self.header_handler = inspector_header()
         self.data_indicator = ''
         self.data_unpacker = None
@@ -11,9 +11,12 @@ class InspectorFileDataLoader:
             self.header, self.start_offset = self.header_handler.parse_file(fileinput)
             self.header_handler.update(self.header)
             self.io = open(fileinput, 'rb')
-            self.support_data = np.zeros(shape=(
-                self.header_handler.number_of_traces, self.header_handler.crypto_length
-                ), dtype=np.dtype('uint8'))
+            if parse_crypto_data:
+                self.support_data = np.zeros(shape=(
+                    self.header_handler.number_of_traces, self.header_handler.crypto_length
+                    ), dtype=np.dtype('uint8'))
+            else:
+                self.support_data = None
             self.__zero_offset()
             self.prepare(*args, **kwargs)
 
@@ -66,7 +69,8 @@ class InspectorFileDataLoader:
         return self.__read(nsamples * self.header_handler.sample_length)
 
     def prepare(self, cryptolen=0):
-        self.__prepare_crypto_data()
+        if not (self.support_data is None):
+            self.__prepare_crypto_data()
         if self.header_handler.sample_coding == 'float':
             self.indicator = '<f'
         else:
@@ -78,7 +82,6 @@ class InspectorFileDataLoader:
                 self.indicator = '<h'
             else:
                 self.indicator = '<i'
-        
 
     def __prepare_crypto_data(self):
         self.__zero_offset()
