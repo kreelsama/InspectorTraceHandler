@@ -212,7 +212,7 @@ class HeaderHandler:
     
     @property
     def sample_coding(self):
-        if self['SC']>>8:
+        if self['SC']>>4:
             return 'float'
         else:
             return 'int'
