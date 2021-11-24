@@ -151,15 +151,23 @@ class HeaderHandler:
     
     def __set_code(self, dtype):
         encode = 0
-        if dtype == 'int8' or dtype == 'byte':
-            encode  = 0x01
-        elif dtype == 'int16':
-            encode  = 0x02
-        elif dtype == 'int32' or dtype == 'int' or dtype == np.dtype('int32'):
-            encode  = 0x04
-        elif dtype == 'float' or dtype in \
-            [np.dtype('float8'), np.dtype('float16'), np.dtype('float32'), np.dtype('float64')]:
-            encode  = 0x14
+        if dtype in ['int', 'byte']:
+            encode = 0x01
+        elif dtype in ['int16']:
+            encode = 0x02
+        elif dtype in ['int32', 'int' , np.dtype('int32')]:
+            encode = 0x04
+        elif dtype in ['float8']:
+            print("Warning: float type does not work with data with single byte length, you'd better check twice.")
+            encode = 0x11
+        elif dtype in ['float16']:
+            print("Warning: float type with 2 bytes length is rare, you'd better check twice.")
+            encode = 0x12
+        elif dtype in ['float32', 'float']: # defaut float is 4 bytes length
+            encode = 0x14
+        elif isinstance(dtype, int):
+            assert dtype in [0x01,0x02,0x04,0x11,0x12,0x14]
+            encode = dtype
         else:
             ValueError("Unrecognized dtype:{}".format(dtype))
 

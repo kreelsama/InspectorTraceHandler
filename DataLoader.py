@@ -79,13 +79,9 @@ class InspectorFileDataLoader:
             self.indicator = '<f'
         else:
             assert self.header_handler.sample_coding == 'int'
-            ## default is SIGNED INT
-            if self.header_handler.sample_length == 1:
-                self.indicator = '<b'
-            elif self.header_handler.sample_length == 2:
-                self.indicator = '<h'
-            else:
-                self.indicator = '<i'
+            self.indicator = '<i'
+        ## default is SIGNED values
+        self.indicator += str(self.header_handler.sample_length)
 
     def __prepare_crypto_data(self):
         self.__zero_offset()
