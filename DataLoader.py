@@ -11,7 +11,7 @@ class InspectorFileDataLoader:
             self.header, self.start_offset = self.header_handler.parse_file(fileinput)
             self.header_handler.update(self.header)
             self.io = open(fileinput, 'rb')
-            if parse_crypto_data:
+            if parse_crypto_data and self.header_handler.crypto_length:
                 self.support_data = np.zeros(shape=(
                     self.header_handler.number_of_traces, self.header_handler.crypto_length
                     ), dtype=np.dtype('uint8'))
@@ -28,6 +28,10 @@ class InspectorFileDataLoader:
     def __len__(self):
         return self.header_handler.number_of_traces
     
+    @property
+    def shape(self):
+        return (len(self), self.header_handler.sample_length)
+
     # Using this attribute beautifies code
     @property
     def traces(self):
@@ -85,8 +89,6 @@ class InspectorFileDataLoader:
 
     def __prepare_crypto_data(self):
         self.__zero_offset()
-        if not self.header_handler.crypto_length:
-            return None
         for idx in range(self.header_handler.number_of_traces):
             one = self.__read(self.header_handler.crypto_length)
             self.support_data[idx] = list(one)
@@ -98,6 +100,16 @@ class InspectorFileDataLoader:
     def crypto_data(self):
         return self.support_data
     
+    def save_crypto_data(self, filename, format='npy'):
+        if None is self.support_data:
+            raise ValueError("No crypto data supplied")
+
+        if format in ['npy', 'numpy', 'np']:
+            import numpy
+            numpy.save(filename, self.support_data)
+        else:
+            raise NotImplementedError("Unrecognized save format " + format)
+
     def __del__(self):
         if not self.io.closed:
             self.io.close()
