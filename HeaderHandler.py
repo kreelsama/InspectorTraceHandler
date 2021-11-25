@@ -224,7 +224,11 @@ class HeaderHandler:
 
     @property
     def crypto_length(self):
-        return self['DS']
+        cryptolen = self['DS']
+        if cryptolen:
+            return cryptolen 
+        else:
+            return 0
     
     @property
     def sample_length(self):
