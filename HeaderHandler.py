@@ -24,6 +24,7 @@ header_format = [
     #[0x5f, 'TB', 1, None,   0,    0,           1, "Trace block marker: an empty TLV that marks the end of the header"]
 ]
 _Item = namedtuple("Item", ["tag", "name", "mo", "type", "length", "value", "consist", "descr"])
+HeaderEndMarker = b'\x5f\x00'
 
 class HeaderHandler:
     def __init__(self) -> None:
@@ -32,7 +33,7 @@ class HeaderHandler:
 
         self.global_header_dict = None
 
-        self.StartMarker = b"\x5f\x00"
+        self.StartMarker = HeaderEndMarker
 
     def __getitem__(self, attribute):
         for item in header_format:
@@ -210,6 +211,17 @@ class HeaderHandler:
         NT_tag = 0x41
         self.global_header_dict[NT_tag] += incr
     
+    def summary(self, printout=False):
+        header = self.__trim(self.global_header_dict)
+        desc = []
+        for item in header_format:
+            tag = item[0]
+            if tag in header:
+                desc.append([item[-1], header[item]])
+                if printout:
+                    print(item[-1], ':', header[item])
+        return desc
+
     @property
     def crypto_length(self):
         return self['DS']
