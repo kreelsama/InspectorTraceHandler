@@ -187,11 +187,10 @@ class HeaderHandler:
     def __attribute_setter(self, attribute, value):
         if not self.global_header_dict:
             self.global_header_dict = self.__make_empty()
+        if attribute == 'NT':
+            print("Warning: set number of traces manually to {}".format(value))
         if attribute == 'SC':
             self.__set_code(value)
-        elif attribute == 'NT':
-            raise ValueError("Can't set number of traces. \
-                This attribute should be updated automatically.")
         else:
             for item in header_format:
                 if item[1] == attribute:
@@ -221,7 +220,7 @@ class HeaderHandler:
                 if printout:
                     print(item[-1], ':', header[item])
         return desc
-
+    
     @property
     def crypto_length(self):
         cryptolen = self['DS']

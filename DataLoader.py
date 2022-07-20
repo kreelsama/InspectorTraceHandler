@@ -11,6 +11,12 @@ class InspectorFileDataLoader:
             self.header, self.start_offset = self.header_handler.parse_file(fileinput)
             self.header_handler.update(self.header)
             self.io = open(fileinput, 'rb')
+            ntraces = self.get_real_number_of_traces()
+            if ntraces != self.header_handler.number_of_traces:
+                print("Warning: Number of traces in header {} does not match actual number of traces {}".format(
+                    self.header_handler.number_of_traces, ntraces)
+                )
+                self.header_handler.set_header_manually(NT=ntraces)
             if parse_crypto_data and self.header_handler.crypto_length:
                 self.support_data = np.zeros(shape=(
                     self.header_handler.number_of_traces, self.header_handler.crypto_length
@@ -71,7 +77,21 @@ class InspectorFileDataLoader:
 
     def __read_samples(self, nsamples=0):
         return self.__read(nsamples * self.header_handler.sample_length)
+    
+    def get_real_number_of_traces(self):
+        total_bytes = self.io.seek(0, 2)
+        self.__zero_offset()
+        cur_bytes = self.io.tell()
+        data_bytes = total_bytes - cur_bytes
+        if data_bytes % self.header_handler.trace_interval == 0:
+            return data_bytes // self.header_handler.trace_interval
+        else:
+            print("Warning: Trace file data is not aligned, discarding {} bytes".format(
+                data_bytes % self.header_handler.trace_interval
+            ))
+            return int(data_bytes / self.header_handler.trace_interval)
 
+        
     def prepare(self, cryptolen=0):
         if not (self.support_data is None):
             self.__prepare_crypto_data()
@@ -184,9 +204,6 @@ class InspectorFileDataLoader:
                 data = b''
 
         return data
-
-    def set_trace_mask(self, mask):
-        ...
     
     def __frombytes(self, b:bytes):
         assert len(b) % self.header_handler.sample_length == 0
