@@ -152,7 +152,7 @@ class HeaderHandler:
     
     def __set_code(self, dtype):
         encode = 0
-        if dtype in ['int', 'byte']:
+        if dtype in ['int', 'int8', 'byte']:
             encode = 0x01
         elif dtype in ['int16']:
             encode = 0x02
